@@ -7,10 +7,15 @@ Created on Sep 5, 2019
 import os, time, pyautogui
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
 
 def main():
+    search_array = ['[list of cases seperated by commas]']
+
+    missing_cases = check_missing(search_array)
+
+    missing_array = []
+
     # Set driver here so lesser implications
     driver = get_browser()
 
@@ -23,16 +28,10 @@ def main():
     driver.find_element_by_id('_58_password').send_keys('[password]')
     driver.find_element_by_name('login').send_keys(Keys.ENTER)
 
-    search_array = ['[list of cases seperated by commas]']
-
-    # missing_cases = check_missing(search_array)
-
-    missing_array = []
-
     # Main window, first tab
     winHandleBefore = driver.window_handles[0]
 
-    for case in search_array:
+    for case in missing_cases:
 
         try:
         # Search
@@ -54,15 +53,34 @@ def main():
 
                 driver.find_element_by_xpath('//*[@title="Download the PDF"]').click()
                 time.sleep(2)
+
+                # Citation
+                citation_element = driver.find_element_by_xpath('//div[@class=\'titleCitation\']')
+                citation = citation_element.get_attribute('innerHTML')
+
+                # Switch to pop-up window
+                driver.switch_to.window(driver.window_handles[2])
+
+                # Ctrl S and Save PDF
+                time.sleep(1)
+                pyautogui.hotkey('ctrl', 's')
+                time.sleep(1)
+                pyautogui.typewrite(citation)
+                time.sleep(1)
+                pyautogui.press('enter', 1)
+                time.sleep(3)
+
                 driver.close()
                 time.sleep(2)
-
+                driver.switch_to.window(driver.window_handles[1])
+                time.sleep(2)
+                driver.close()
+                time.sleep(2)
                 driver.switch_to.window(winHandleBefore)
                 driver.get('https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search')
 
             # Else it will be HTML only
             else:
-
                 action = ActionChains(driver)
 
                 print_icon = driver.find_element_by_class_name("iconPrint")
@@ -75,15 +93,18 @@ def main():
                 # Switch to pop-up window
                 driver.switch_to.window(driver.window_handles[2])
 
+                # Citation
+                citation_element = driver.find_element_by_xpath('//div[@class=\'titleCitation\']')
+                citation = citation_element.get_attribute('innerHTML')
+
                 # Ctrl S and Save HTML
                 time.sleep(1)
-                page_title = driver.title
                 pyautogui.hotkey('ctrl', 's')
                 time.sleep(1)
-                pyautogui.typewrite(page_title + '.html')
+                pyautogui.typewrite(citation)
                 time.sleep(1)
                 pyautogui.press('enter', 1)
-                time.sleep(5)
+                time.sleep(3)
 
                 driver.close()
                 time.sleep(2)
@@ -95,7 +116,7 @@ def main():
                 driver.get('https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search')
         # Case is not found
         except:
-            missing_array += case
+            missing_array.append(case)
             driver.get('https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search')
             continue
 
@@ -110,29 +131,43 @@ def get_browser():
 
     """Get the browser (a "driver")."""
     # Find the path with 'chromedriver'
-    path_to_chromedriver = ('[Path to the chromedriver]')
-    download_dir = "[Path to downloads folder]"
+    path_to_chromedriver = ('[Path to driver]')
 
-    chrome_options = Options()
-    chrome_options.add_experimental_option('prefs', {
-        "plugins.plugins_list": [{"enabled": False, "name": "Chrome PDF Viewer"}],
-        "download": { "prompt_for_download": False, "default_directory": download_dir }
-    })
+    # We will comment out the following codes as we don't want auto download
+    # We want to rename files before saving them
+    # download_dir = "[Path to store download]"
 
-    browser = webdriver.Chrome(path_to_chromedriver, chrome_options=chrome_options)
+    # chrome_options = Options()
+    # chrome_options.add_experimental_option('prefs', {
+        # "plugins.plugins_list": [{"enabled": False, "name": "Chrome PDF Viewer"}],
+        # "download": { "prompt_for_download": False, "default_directory": download_dir }
+    # })
+
+    browser = webdriver.Chrome(path_to_chromedriver)
     return browser
 
-# KIV first, to confirm naming convention
 def check_missing(checklist):
 
     # Find all the files is current list
-    current_list = os.listdir('[Path to downloads folder]')
+    current_list = os.listdir('[Download folder]')
 
     # Remove all the extension
     files = [os.path.splitext(x)[0] for x in current_list]
 
-    # Compare files with list of case to download
-    updated_list = (set(checklist).difference(files))
+    # List to store all the case that have yet to be downloaded
+    updated_list = []
+
+    # If case does not match file in local, mean you will have to download it
+    for each_case in checklist:
+        match_status = False
+        bracket_position = each_case.find('[')
+        case_id = each_case[bracket_position:]
+        for file in files:
+            if (case_id in file):
+                match_status = True
+                break
+        if not (match_status == True):
+            updated_list.append(each_case)
 
     return updated_list
 
